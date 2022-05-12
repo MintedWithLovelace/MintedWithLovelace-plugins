@@ -22,17 +22,14 @@ def do_settings(campaign_name, minted_root):
     return []
 
 # Customize plugin code
-def do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, tx_meta_json, mint_qty_int):
+def do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
     err_bool = False
     campaign_path = settings['mwl_path']
-    json_file_list = []
-
+    queued = osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'queued'), '')
     """
-        Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json, mint_qty_int, and json_file_list...take note of the expected type of each variable
-
-        The file list returned must coincide with actual json files by those names within the Minted queueud folder for the campaign and network type.  For example, a return list for 4 json files named MyNFT01.json through MyNFT04.json, would expect those files to be in the campaign_path + 'minting/queued/' folder, and the return list would be: ['MyNFT01.json', 'MyNFT02.json', 'MyNFT03.json', 'MyNFT04.json']
+        Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json and mint_qty_int...take note of the expected type of each variable. In addition Minted expects to find resultant JSON files in the queued folder, named according to the normal standard for Minted (e.g. MyNFT008.json .. or .. MyNFT8.json..etc depending on your naming schema)
     """
-    return err_bool, tx_meta_json, mint_qty_int, json_file_list
+    return err_bool, tx_meta_json, mint_qty_int
 
 # DO NOT MODIFY BELOW
 if __name__ == "__main__":
@@ -66,13 +63,14 @@ if __name__ == "__main__":
         payer_ada = input_data['payer_ada']
         payer_return_ada = input_data['ada_to_return']
         payer_asset_string = input_data['payer_asset_string']
+        policy_id = input_data['policy_id']
 
         # Data in & can return:
         tx_meta_json = input_data['payer_txmeta']
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, return_txmeta, return_mintqty, return_jsonfiles = do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, tx_meta_json, mint_qty_int)
-        out_print = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int, "json_files": json_file_list}
+        return_err, return_txmeta, return_mintqty, return_jsonfiles = do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        out_print = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int}
 
     exit(json.dumps(out_print))
