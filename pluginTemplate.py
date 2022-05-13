@@ -24,7 +24,7 @@ def do_settings(campaign_name, minted_root):
 # Customize plugin code
 def do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
     err_bool = False
-    campaign_path = settings['mwl_path']
+    campaign_path = settings[0]
     queued = osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'queued'), '')
     """
         Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json and mint_qty_int...take note of the expected type of each variable. In addition Minted expects to find resultant JSON files in the queued folder, named according to the normal standard for Minted (e.g. MyNFT008.json .. or .. MyNFT8.json..etc depending on your naming schema)
