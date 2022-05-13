@@ -7,7 +7,7 @@ This repository contains a template plugin file to utilize, which handles all th
 ### About Plugins
 #### Plugin Should Expect...
 
-There are two distinct input sets expected by Minted when it runs a plugin: --setup and --data. During configuration of a new campaign in Minted, if a plugin is activated, Minted will attempt to run that plugin's setup function to add any custom setting information. If none is required for your plugin, leave the setup section in the plugin unaltered. If you do need to setup some custom settings, add them as input prompts within the setup function and be sure to also add them to the do_plugin function for processing in real time...add them by the same names as dictionary items in do_plugin.
+There are two distinct input sets a plugin for Minted should expect input from: --setup and --data. During configuration of a new campaign in Minted, if a plugin is activated, Minted will attempt to run that plugin's setup function to add any custom setting information. If none is required for your plugin, leave the setup section in the plugin unaltered. If you do need to setup some custom settings, add them as input prompts within the setup function and be sure to also add them to the do_plugin function for processing in real time...add them by the same names as dictionary items in do_plugin.
 
 The --data option is for normal operation, to pass in data Minted is configured to pass in, as well as any custom settings you established. One setting which is added by Minted is "mwl_path", which is the absolute folderpath to the campaign's main folder (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/). 
 
