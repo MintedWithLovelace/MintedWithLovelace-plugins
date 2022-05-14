@@ -22,10 +22,15 @@ def do_settings(campaign_name, minted_root):
     return []
 
 # Customize plugin code
-def do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
+def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
     err_bool = False
-    campaign_path = settings[0]
-    queued = osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'queued'), '')
+    nettype = 'mainnet'
+    if is_test is True:
+        nettype = 'testnet'
+    campaign_path = osjoin(osjoin(settings[0], nettype), '')
+    queued = osjoin(osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'auto'), 'queued'), '')
+    # Recommended:
+    # cache_dir = osjoin(osjoin(osjoin(dirname(dirname(dirname(dirname(campaign_path)))), 'plugins'), 'your_cache_folder_name'), '')
     """
         Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json and mint_qty_int...take note of the expected type of each variable. In addition Minted expects to find resultant JSON files in the queued folder, named according to the normal standard for Minted (e.g. MyNFT008.json .. or .. MyNFT8.json..etc depending on your naming schema)
     """
@@ -58,6 +63,7 @@ if __name__ == "__main__":
 
         # Data in:
         settings = input_data['settings']
+        is_test = input_data['test']
         payer_hash = input_data['payer_hash']
         payer_addr = input_data['payer_addr']
         payer_ada = input_data['payer_ada']
@@ -70,7 +76,7 @@ if __name__ == "__main__":
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, return_txmeta, return_mintqty = do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        return_err, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
         out_print = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int}
 
     exit(json.dumps(out_print))
