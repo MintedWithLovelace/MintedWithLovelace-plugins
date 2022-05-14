@@ -70,7 +70,7 @@ if __name__ == "__main__":
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, return_txmeta, return_mintqty, return_jsonfiles = do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        return_err, return_txmeta, return_mintqty = do_plugin(settings, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
         out_print = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int}
 
     exit(json.dumps(out_print))
