@@ -21,37 +21,46 @@ Following are these two options and what Minted outputs to the plugin for each f
 
 --data 
 "{
-    'settings': list-settings (pos=0 is the campaign base folder (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/), pos=1+ are custom settings
+    'settings': list-settings (pos=0 is the campaign base folder (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/), pos=1+ are any added custom settings
+    'is_test': bool,
     'payer_hash': str'TXhashstring',
     'payer_addr': str'PayersAddress',
-    'payer_ada': intADA-payed,
+    'payer_ada': intADA-received-in-payment,
+    'ada_to_return': intADA-to-return
     'payer_asset_string': str'anyAssetsIncluded_as_a_string_withUnique_separators',
     'policy_id': str'CampaignPolicyID',
     'payer_txmeta': str'{json_of_tx_meta_if_any}',
-    'qty_to_mint': intNumber_of_NFTs_to_Mint,
-    'ada_to_return': intADA-to-return
+    'qty_to_mint': intNumber_of_NFTs_to_Mint
 }"
 
 
-#### Minted expects...
+#### Minted Expected Returns
 
-For setup, Minted expects an output json string {"err": err_bool, "data": setting_prompts_list}, which is preformatted in the template so for most cases if developing a plugin, you will just need to output for the do_setup function, which expects to output just a list of any custom settings.
+##### Setup returns...
 
-For normal operation, you will have 3 outputs and 1 file action expected. For the file action, your plugin is expected to place the appropriate JSON files for the NFTs to be minted for this particular payment. These files should be placed in the queued folder, the template plugin already has this code in the appropriate sections so all you need to note are the variable names for use in your code.
+For setup, Minted expects an output json string:
 
-The do_plugin function should return: error status (True or False bool), the json meta data in string format...which if you are not watching for incoming txmeta or modifying it in any way, you can simply ignore this var and it will just pass through...and lastly the mint quantity integer, either modified per your plugin or just leave it as is and it will pass through.
+  {"err": true/false, "data": listSetting_prompts}
+
+which is preformatted in the template so for most cases if developing a plugin, you will just need to output for the do_setup function, which expects to output just a list of any custom settings.
+
+##### Normal/in-dapp operation returns...
+
+For normal operation, you will have 3 outputs:
+
+  {"err": true/false, "action": "mint/refund", "tx_meta": jsonstringTx_meta_json, "mint_qty": intToMintQty}
+
+Your plugin should output any error boolean to the "err" similar to the setup returns. Second is the "action" return, which can be either "mint" or "refund". Next, "tx_meta" returns the TX Metadata which was passed into the plugin from Minted and altered in any way, if any at all. Minted will output either the discovered inbound TX Meta, to be then attached to the mint tx, or if "no-txmeta" is returned, Minted will ignore the tx-meta. This is handy especially if you expect tx-metadata to come in and want to deterministically filter which tx's should pass on the txmeta vs not pass it on (but perhaps use that data for the plugin only, for example). And lastly you can either pass the already-determined mint-qty to Minted or your plugin may alter that number for some reason, and you can return the new number. 
+
+For the file action, your plugin is expected to place the appropriate JSON files for the NFTs to be minted for this particular payment it's processing, into the queued folder, found in your campaign folder under the appropriate network folder and then "minting".  For example, for testnet, the queued folder is found at: ".MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/testnet/minting/auto/queued/".  Of course, if you are returning the action "refund" you would not place any files in the queued folder.
 
 ### Additional Notes
 
 For questions or support join the [MintedWithLovelace discord server](https://mintedwithlovelace.com).
 
-#### Demo Plugins Available
+#### Demo and Live Usecase Plugins Available
 
-Coming soon!
-
-#### Project Specific Plugins
-
-##### :: [CypherArtist](https://github.com/MadeWithLovelace/MintedWithLovelace-plugins/blob/main/cypherartist.py) ::
+Soon-to-launch Live Usecase :: [CypherMonks Generative "Live Artist" Plugin](https://github.com/MadeWithLovelace/MintedWithLovelace-plugins/blob/main/live-usecases/artistCypherMonks.py) ::
 
 This plugin generates the NFT(s) in-real-time, deriving the colour pallette using the payer's Cardano stake key (shared portion of the address, linking all addresses in a wallet). Each NFT minted for a given wallet is also unique from each other, including arrangement of some colour elements and some pattern elements and some of both. The CypherArtist generates the art, uploads/pins/hashes it for IPFS, and generates the resultant JSON files, returned to Minted for minting to finalize.
 
