@@ -12,16 +12,17 @@ from time import sleep, strftime, gmtime
 # Custom plugin-specific settings
 def do_settings(campaign_name, minted_root):
     # BEGIN Cusomize Static Setting or Prompt for Input
-    total = 2900
+    total_to_mint = 2900
+    cache_folder_name = 'cyphermonkcache'
     # END custom
 
-    cache_dir = osjoin(osjoin(osjoin(minted_root, 'plugins'), 'cyphermonkcache'), '')
+    cache_dir = osjoin(osjoin(osjoin(minted_root, 'plugins'), cache_folder_name), '')
     try:
         mkdir(cache_dir)
     except OSError:
         pass
-    intlen = len(str(total))
-    nftrange = [*range(1, (total + 1), 1)]
+    intlen = len(str(total_to_mint))
+    nftrange = [*range(1, (total_to_mint + 1), 1)]
     for nftk, nfti in enumerate(nftrange):
         newi = str(nfti).zfill(intlen)
         nftrange[nftk] = newi
