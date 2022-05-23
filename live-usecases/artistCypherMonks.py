@@ -45,6 +45,8 @@ def do_settings(campaign_name, minted_root):
 
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
+    if len(payer_asset_string) > 9:
+        return False, 'refund', tx_meta_json, mint_qty_int
     # BEGIN Customize Vars/Setting Assignments
     seed = payer_addr
     nftbasename = settings[1]
@@ -80,16 +82,16 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
     nftnum_list = cache_dir + 'nftnumlist.log'
     is_nftnums = isfile(nftnum_list)
     if not is_nftnums:
-        return True, '', ''
+        return True, '', tx_meta_json, mint_qty_int
     if enable_html is True:
-        json_template = '{"721": {"POLICY_ID": {"NFT_NAME": {"name": "NFT_LONG_NAME", "artist": "CypherMonks.com", "footnotes": "Cypherdelic Monks of Cardano", "spectrum": "SPECTRUM", "attributes": [ATT_LIST],NFT_RARITY"image": "IPFS_HASH", "files": [{"mediaType": "text/html", "src": HTML_DATA}]}}}}'
+        JSON_TEMP = '{"721": {"POLICY_ID": {"NFT_NAME": {"name": "NFT_LONG_NAME", "artist": "CypherMonks.com", "footnotes": "Cypherdelic Monks of Cardano", "spectrum": SPECTRUM, "attributes": [ATT_LIST],NFT_RARITY"image": "IPFS_HASH", "files": [{"mediaType": "text/html", "src": HTML_DATA}]}}}}'
     else:
-        json_template = '{"721": {"POLICY_ID": {"NFT_NAME": {"name": "NFT_LONG_NAME", "artist": "CypherMonks.com", "footnotes": "Cypherdelic Monks of Cardano", "spectrum": "SPECTRUM", "attributes": [ATT_LIST],NFT_RARITY"image": "IPFS_HASH"}}}}'
+        JSON_TEMP = '{"721": {"POLICY_ID": {"NFT_NAME": {"name": "NFT_LONG_NAME", "artist": "CypherMonks.com", "footnotes": "Cypherdelic Monks of Cardano", "spectrum": SPECTRUM, "attributes": [ATT_LIST],NFT_RARITY"image": "IPFS_HASH"}}}}'
     with open(nftnum_list, 'r') as numlistfile:
         nft_list_ini = numlistfile.read().split(',')
         numlistfile.close()
     if len(nft_list_ini) == 0:
-        return True, '', ''
+        return True, '', tx_meta_json, mint_qty_int
     if len(nft_list_ini) < mint_qty_int:
         mint_qty_int = len(nft_list_ini)
 
@@ -142,9 +144,8 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             update_numlist.write(','.join(nft_list))
             update_numlist.close()
         nftname = nftbasename + nft_num
-        nftlongname = nftlongname + ' #' + nft_num
+        nftlongname_display = nftlongname + ' #' + nft_num
         mint_loop -= 1
-        att_list = ''
         unique_log = ''
         nft_rarity = ''
 
@@ -518,15 +519,16 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 ep = ew = eb = sg
 
             # Construct JSON Values
-            att_list += '"Background: ' + str(bg) + '"'
-            att_list += ',"Frock: ' + str(fc) + '/' + str(fh) + '/' + str(fs) + '"'
-            att_list += ',"Skin: ' + str(sk) + '"'
-            att_list += ',"Mouth: ' + str(mt) + '"'
-            att_list += ',"Shades: ' + str(sg) + '"'
+            att_list = ''
+            att_list += '{"Background": "' + str(bg) + '"}'
+            att_list += ',{"Frock": "' + str(fc) + '/' + str(fh) + '/' + str(fs) + '"}'
+            att_list += ',{"Skin": "' + str(sk) + '"}'
+            att_list += ',{"Mouth": "' + str(mt) + '"}'
+            att_list += ',{"Shades": "' + str(sg) + '"}'
             if er != sk:
-                att_list += ',"Earring: ' + str(er) + '"'
+                att_list += ',{"Earring": "' + str(er) + '"}'
             if sm_active is True:
-                att_list += ',"420: ' + str(sm) + '/' + str(sf) + '/' + str(sz) + '"'
+                att_list += ',{"420": "' + str(sm) + '/' + str(sf) + '/' + str(sz) + '"}'
             if not nft_rarity:
                 nft_rarity = ' '
 
@@ -645,19 +647,26 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             html_doc.write(html)
             html_doc.close()
         encoded_html_json = json.dumps(encode_to_base64(cache_dir + 'htmlcache.html', 'html'))
-        json_template = json_template.replace('POLICY_ID', ' '.join(policy_id.split()))
+        json_template = JSON_TEMP.replace('POLICY_ID', ' '.join(policy_id.split()))
         json_template = json_template.replace('NFT_NAME', ' '.join(nftname.split()))
-        json_template = json_template.replace('NFT_LONG_NAME', ' '.join(nftlongname.split()))
+        json_template = json_template.replace('NFT_LONG_NAME', ' '.join(nftlongname_display.split()))
         json_template = json_template.replace('ATT_LIST', ' '.join(att_list.split()))
         json_template = json_template.replace('NFT_RARITY', ' '.join(nft_rarity.split()))
         json_template = json_template.replace('IPFS_HASH', ' '.join(ipfs_hash.split()))
         if enable_html is True:
             json_template = json_template.replace('HTML_DATA', ' '.join(encoded_html_json.split()))
-        json_template = json_template.replace('SPECTRUM', ' '.join(unique_log.split()))
+        spectrum_list = [unique_log]
+        if '|' in unique_log:
+            unique_log_list = unique_log.split('|')
+            out_spectrum = []
+            for sitem in unique_log_list:
+                out_spectrum += [str(sitem)]
+        out_spectrum = json.dumps(out_spectrum)
+        json_template = json_template.replace('SPECTRUM', ' '.join(out_spectrum.split()))
         with open(queued + nftname + '.json', 'w') as jsonfileout:
             jsonfileout.write(json_template)
             jsonfileout.close()
-    return err_bool, tx_meta_json, mint_qty_int
+    return err_bool, 'mint', tx_meta_json, mint_qty_int
 
 
 # DO NOT MODIFY BELOW
@@ -700,7 +709,7 @@ if __name__ == "__main__":
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
-        return_data = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int}
+        return_err, action, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        return_data = {"err": return_err, "action": action, "tx_meta": return_txmeta, "mint_qty": return_mintqty}
 
     exit(json.dumps(return_data))
