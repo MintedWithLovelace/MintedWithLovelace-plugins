@@ -59,8 +59,10 @@ The [Minted Plugin Template](https://github.com/MadeWithLovelace/MintedWithLovel
 
 Settings/Data Sent to Plugin:
 ```
-  settings = A list of all custom settings, with the first 2 positions in the list preset to: 0 = campaign root directory (e.g. "~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/testnet/"); 1 = Your campaign name (e.g. MyCampaign). List positions 2 and up are populated with any custom settings you added to the setup function of the plugin.
-  is_test = A boolean reflecting whether running on testnet (true = on testnet)
+  settings = A list of all custom settings beginning at position 2 (0 and 1 are reserved as follows in the next 2 lines)
+  settings[0] = campaign root directory (e.g. "~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/testnet/")
+  settings[1] = Your campaign name (e.g. "MyCampaign").
+  is_test = Boolean reflecting whether running on testnet (true = on testnet)
   payer_hash = This TX hash
   payer_addr = This TX payer Cardano address
   payer_ada = This TX incoming ADA amount represented in lovelace (35 ADA = 35000000)
