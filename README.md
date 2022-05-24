@@ -58,6 +58,7 @@ For the file action, your plugin is expected to place the appropriate JSON files
 The [Minted Plugin Template](https://github.com/MadeWithLovelace/MintedWithLovelace-plugins/blob/main/pluginTemplate.py) allows you to easily create a custom Plugin compatible for use with Minted, with the following data passed and folders already made available to the plugin: 
 
 Settings/Data Sent to Plugin:
+```
   settings = A list of all custom settings, with the first 2 positions in the list preset to: 0 = campaign root directory (e.g. "~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/testnet/"); 1 = Your campaign name (e.g. MyCampaign). List positions 2 and up are populated with any custom settings you added to the setup function of the plugin.
   is_test = A boolean reflecting whether running on testnet (true = on testnet)
   payer_hash = This TX hash
@@ -68,12 +69,14 @@ Settings/Data Sent to Plugin:
   policy_id = This campaign minting Policy ID
   tx_meta_json = This TX metadata (if any)
   mint_qty_int = Number of NFTs to Mint to This Buyer (reflecting any adjustments already made by any Action Script)
-
+```
 Folders Already Available:
+```
   campaign_path = your campaign path for the current network (test or main) (e.g. "~/.MintedWithLovelace/campaigns/YOURCAMPAIGN/testnet")
   queued = the queued folder for the current campaign/network (e.g. "~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/testnet/minting/auto/queued/")
   cache_dir = a custom cache folder for your plugin using your campaign name (e.g. "~/.MintedWithLovelace/plugins/cacheMyCampaign")
   scripts_dir = the Action Scripts directory for Minted, to make it easier to map to a scripts file if doing further conditions within your plugin
+```
 
 #### Demo and Live Usecase Plugins Available
 
