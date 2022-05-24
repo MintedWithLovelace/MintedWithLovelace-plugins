@@ -1,6 +1,8 @@
 # MintedWithLovelace-plugins
 
-Plugins for the Minted DApp allow you to interrupt a minting process at the point before the dapp assembles the json files to mint for a particular incoming transaction. When a Plugin is activated for a campaign, Minted will attempt to run the plugin at this interrupt point, and will include setting and transaction information as json string input to the plugin. The plugin is expected to produce the required JSON files for minting, along with either the already-determined NFT count or a modified count, per the technicals outlined below.
+Plugins for the Minted DApp allow you to interrupt a minting process at the point before the dapp assembles the json files to mint for a particular incoming transaction. This interrupt occurs per-tx and you can return to minted an action command of "mint" or "refund" along with some modified data as outlined below.
+
+When a Plugin is activated for a campaign, Minted will attempt to run the plugin at this interrupt point, and will include setting and transaction information as json string input to the plugin as outlined below.
 
 This repository contains a template plugin file to utilize, which handles all the input/output required by Minted, found here: https://github.com/MadeWithLovelace/MintedWithLovelace-plugins/blob/main/pluginTemplate.py
 
