@@ -46,14 +46,14 @@ def do_settings(campaign_name, minted_root):
 
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
-    if len(payer_asset_string) > 9:
+    if len(payer_asset_string) > 24:
         return False, 'refund', tx_meta_json, mint_qty_int
     # BEGIN Customize Vars/Setting Assignments
     seed = payer_addr
-    nftbasename = settings[1]
-    nftlongname = settings[2]
-    pn_key = settings[3]
-    pn_sec = settings[4]
+    nftbasename = settings[2]
+    nftlongname = settings[3]
+    pn_key = settings[4]
+    pn_sec = settings[5]
     # static settings
     enable_html = False
     # END custom vars
