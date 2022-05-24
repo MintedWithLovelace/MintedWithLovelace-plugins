@@ -11,6 +11,11 @@ This template is used to generate a MintedWithLovelace Plugin for use with the M
 
 # Custom plugin-specific settings
 def do_settings(campaign_name, minted_root):
+    cache_dir = osjoin(osjoin(osjoin(minted_root, 'plugins'), '_cache' + campaign_name), '')
+    try:
+        mkdir(cache_dir)
+    except OSError:
+        pass
     """
         Modify the following settings list by adding any custom setting prompt entries for saving settings for this plugin. They will be returned during operation in the same format as saved here. Passed in from Minted are the campaign name and root folder for Minted
 
@@ -24,17 +29,18 @@ def do_settings(campaign_name, minted_root):
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
     err_bool = False
+    action = 'mint'
     nettype = 'mainnet'
     if is_test is True:
         nettype = 'testnet'
     campaign_path = osjoin(osjoin(settings[0], nettype), '')
     queued = osjoin(osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'auto'), 'queued'), '')
-    # Recommended:
-    # cache_dir = osjoin(osjoin(osjoin(dirname(dirname(dirname(dirname(campaign_path)))), 'plugins'), 'your_cache_folder_name'), '')
+    cache_dir = osjoin(osjoin(osjoin(dirname(dirname(dirname(dirname(campaign_path)))), 'plugins'), '_cache' + settings[1]), '')
+    scripts_dir = osjoin(osjoin(dirname(dirname(dirname(dirname(campaign_path)))), 'scripts'), '')
     """
         Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json and mint_qty_int...take note of the expected type of each variable. In addition Minted expects to find resultant JSON files in the queued folder, named according to the normal standard for Minted (e.g. MyNFT008.json .. or .. MyNFT8.json..etc depending on your naming schema)
     """
-    return err_bool, tx_meta_json, mint_qty_int
+    return err_bool, action, tx_meta_json, mint_qty_int
 
 # DO NOT MODIFY BELOW
 if __name__ == "__main__":
@@ -56,14 +62,14 @@ if __name__ == "__main__":
     if len(input_setup) > 0:
         input_setup = json.loads(input_setup)
         settings = do_settings(input_setup['campaign_name'], input_setup['minted_root'])
-        out_print = {"err": False, "data": settings}
+        return_data = {"err": False, "data": settings}
 
     if len(input_data) > 0:
         input_data = json.loads(input_data)
 
         # Data in:
         settings = input_data['settings']
-        is_test = input_data['test']
+        is_test = input_data['is_test']
         payer_hash = input_data['payer_hash']
         payer_addr = input_data['payer_addr']
         payer_ada = input_data['payer_ada']
@@ -76,7 +82,7 @@ if __name__ == "__main__":
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
-        out_print = {"err": return_err, "tx_meta": tx_meta_json, "mint_qty": mint_qty_int}
+        return_err, action, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        return_data = {"err": return_err, "action": action, "tx_meta": return_txmeta, "mint_qty": return_mintqty}
 
-    exit(json.dumps(out_print))
+    exit(json.dumps(return_data))
