@@ -9,6 +9,9 @@ from sys import exit, argv
 from time import sleep, strftime, gmtime
 
 
+TKN_LIMIT = 400
+
+
 # Custom plugin-specific settings
 def do_settings(campaign_name, minted_root):
     # BEGIN Cusomize Static Setting or Prompt for Input
@@ -46,7 +49,7 @@ def do_settings(campaign_name, minted_root):
 
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
-    if len(payer_asset_string) > 24:
+    if len(payer_asset_string) > TKN_LIMIT:
         return False, 'refund', tx_meta_json, mint_qty_int
     # BEGIN Customize Vars/Setting Assignments
     seed = payer_addr
@@ -656,7 +659,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         json_template = json_template.replace('IPFS_HASH', ' '.join(ipfs_hash.split()))
         if enable_html is True:
             json_template = json_template.replace('HTML_DATA', ' '.join(encoded_html_json.split()))
-        spectrum_list = [unique_log]
+        # spectrum_list = [unique_log]
         if '|' in unique_log:
             unique_log_list = unique_log.split('|')
             out_spectrum = []
