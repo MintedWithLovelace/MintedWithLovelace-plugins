@@ -9,7 +9,9 @@ This repository contains a template plugin file to utilize, which handles all th
 ### About Plugins
 #### Plugin Should Expect...
 
-There are two distinct input sets a plugin for Minted should expect input from: --setup and --data. During configuration of a new campaign in Minted, if a plugin is activated, Minted will attempt to run that plugin's setup function to add any custom setting information which may need to be stored in the database. If none is required for your plugin, leave the setup section in the plugin unaltered. If you do need to setup some custom settings, add them as input prompts within the setup function and be sure to also add them to the do_plugin function for processing in real time...add them by the same names as dictionary items in do_plugin. There are several live usecase plugins included in this git for reference on utilizing custom plugin settings to be stored in the mwl-db json database.
+There are two distinct input sets a plugin for Minted should expect input from: --setup and --data. During configuration of a new campaign in Minted, if a plugin is activated, Minted will attempt to run that plugin's setup function to add any custom setting information which may need to be stored in the database. If none is required for your plugin, leave the setup section in the plugin unaltered.
+
+If you do need to setup some custom settings, add them as input prompts within the setup function and be sure to also add them to the do_plugin function for processing in real time...add them by the same names as dictionary items in do_plugin. There are several live usecase plugins included in this git along with a template for reference on utilizing custom plugin settings to be stored in the mwl-db json database.
 
 The --data option is for normal operation, to pass in data Minted is configured to pass in, as well as any custom settings you established. One setting which is added by Minted is "mwl_path", which is the absolute folderpath to the campaign's main folder (e.g. ~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/). 
 
