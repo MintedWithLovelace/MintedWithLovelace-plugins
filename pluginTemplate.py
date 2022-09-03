@@ -10,8 +10,9 @@ This template is used to generate a MintedWithLovelace Plugin for use with the M
 
 
 # Custom plugin-specific settings
-def do_settings(campaign_name, plugin_dir):
-    cache_dir = osjoin(osjoin(plugin_dir, '_cache' + campaign_name), '')
+def do_settings(campaign_name, campaign_root):
+    cache_folder_name = 'my_plugin_cache'
+    cache_dir = osjoin(osjoin(osjoin(campaign_root, 'plugin'), cache_folder_name), '')
     try:
         mkdir(cache_dir)
     except OSError:
@@ -61,7 +62,7 @@ if __name__ == "__main__":
 
     if len(input_setup) > 0:
         input_setup = json.loads(input_setup)
-        settings = do_settings(input_setup['campaign_name'], input_setup['plugin_dir'])
+        settings = do_settings(input_setup['campaign_name'], input_setup['campaign_root'])
         return_data = {"err": False, "data": settings}
 
     if len(input_data) > 0:
