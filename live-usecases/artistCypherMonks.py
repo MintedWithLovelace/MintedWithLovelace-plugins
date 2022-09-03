@@ -13,13 +13,13 @@ TKN_LIMIT = 400
 
 
 # Custom plugin-specific settings
-def do_settings(campaign_name, minted_root):
+def do_settings(campaign_name, campaign_root):
     # BEGIN Cusomize Static Setting or Prompt for Input
     total_to_mint = 2900
     cache_folder_name = 'cyphermonkcache'
     # END custom
 
-    cache_dir = osjoin(osjoin(osjoin(minted_root, 'plugins'), cache_folder_name), '')
+    cache_dir = osjoin(osjoin(osjoin(campaign_root, 'plugin'), cache_folder_name), '')
     try:
         mkdir(cache_dir)
     except OSError:
@@ -692,7 +692,7 @@ if __name__ == "__main__":
 
     if len(input_setup) > 0:
         input_setup = json.loads(input_setup)
-        settings = do_settings(input_setup['campaign_name'], input_setup['minted_root'])
+        settings = do_settings(input_setup['campaign_name'], input_setup['campaign_root'])
         return_data = {"err": False, "data": settings}
 
     if len(input_data) > 0:
