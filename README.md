@@ -11,20 +11,20 @@ This repository contains a template plugin file to utilize, which handles all th
 
 There are two distinct input sets a plugin for Minted should expect input from: --setup and --data. During configuration of a new campaign in Minted, if a plugin is activated, Minted will attempt to run that plugin's setup function to add any custom setting information which may need to be stored in the database. If none is required for your plugin, leave the setup section in the plugin unaltered. If you do need to setup some custom settings, add them as input prompts within the setup function and be sure to also add them to the do_plugin function for processing in real time...add them by the same names as dictionary items in do_plugin. There are several live usecase plugins included in this git for reference on utilizing custom plugin settings to be stored in the mwl-db json database.
 
-The --data option is for normal operation, to pass in data Minted is configured to pass in, as well as any custom settings you established. One setting which is added by Minted is "mwl_path", which is the absolute folderpath to the campaign's main folder (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/). 
+The --data option is for normal operation, to pass in data Minted is configured to pass in, as well as any custom settings you established. One setting which is added by Minted is "mwl_path", which is the absolute folderpath to the campaign's main folder (e.g. ~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/). 
 
 Following are these two options and what Minted outputs to the plugin for each for reference:
 ```
 --setup 
 "{
-  'campaign_name': YOURCAMPAIGNNAME,
-  'campaign_root': Campaign Roog (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/THISNETWORK[testnet/mainnet])
+  'campaign_name': str'YOURCAMPAIGNNAME',
+  'campaign_root': str'/home/YOURUSERNAME/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/NETWORKTYPE' (e.g. "/home/myname/.MintedWithLovelace/campaigns/MyCampaign/testnet")
 }"
 ```
 ```
 --data 
 "{
-    'settings': list-settings (pos=0 is the campaign base folder (e.g. ~/.MintedWithLovelace/campaigns/THISCAMPAIGN/), pos=1+ are any added custom settings
+    'settings': list-settings (pos=0 is the campaign base folder (e.g. ~/.MintedWithLovelace/campaigns/YOURCAMPAIGNNAME/), pos=1+ are any added custom settings
     'is_test': bool,
     'payer_hash': str'TXhashstring',
     'payer_addr': str'PayersAddress',
