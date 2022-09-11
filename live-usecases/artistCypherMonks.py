@@ -3,42 +3,70 @@ import numpy as np
 import random
 from getopt import getopt
 from os import mkdir
-from os.path import dirname, isfile, join as osjoin
+from os.path import isfile, join as osjoin
 from PIL import Image
+from requests import post as rpost
 from sys import exit, argv
 from time import sleep, strftime, gmtime
 
 
+USE_PINATA = False
+USE_INFURA = True
+NFT_ALT_NAME = 'CypherSpy'
+NFT_ALT_LONG = 'Cypher Spy'
+LIMIT_TKNS = False
 TKN_LIMIT = 400
+TOTAL_TO_MINT = 5000
+USE_STAKE = False
+RAFFLE = True
+RAFFLE_ASSET = ''
+MINT_RESEED = 4
+ALT_LEAD_ZEROS = 2
+
+CACHE_NAME = 'cyphermonkcache'
+NUM_LIST_FILE = 'nftnumlist.log'
+ALT_COUNT_FILE = 'altnumcount.log'
+COL_LOG = 'colours.log'
+SHUF_LOG = 'shuffle.log'
+DEBUG_LOG = ''
+
+
+# Add-on Function for Debug
+def debug_log(out):
+    with open(DEBUG_LOG, 'a') as debuglog:
+        debuglog.write(str(out) + '\n')
+        debuglog.close()
+
+
+# Add-on Function
+def init_file(file_ini):
+    is_file = isfile(file_ini)
+    if not is_file:
+        try:
+            open(file_ini, 'x')
+        except OSError:
+            pass
+        if NUM_LIST_FILE in file_ini:
+            intlen = len(str(TOTAL_TO_MINT))
+            nftrange = [*range(1, (TOTAL_TO_MINT + 1), 1)]
+            for nftk, nfti in enumerate(nftrange):
+                newi = str(nfti).zfill(intlen)
+                nftrange[nftk] = newi
+            with open(file_ini, 'w') as instantiate_nftlist:
+                instantiate_nftlist.write(','.join(nftrange))
+                instantiate_nftlist.close()
 
 
 # Custom plugin-specific settings
 def do_settings(campaign_name, campaign_root):
     # BEGIN Cusomize Static Setting or Prompt for Input
-    total_to_mint = 2900
-    cache_folder_name = 'cyphermonkcache'
+    cache_folder_name = CACHE_NAME
     # END custom
-
     cache_dir = osjoin(osjoin(osjoin(campaign_root, 'plugin'), cache_folder_name), '')
     try:
         mkdir(cache_dir)
     except OSError:
         pass
-    intlen = len(str(total_to_mint))
-    nftrange = [*range(1, (total_to_mint + 1), 1)]
-    for nftk, nfti in enumerate(nftrange):
-        newi = str(nfti).zfill(intlen)
-        nftrange[nftk] = newi
-    nftnums = cache_dir + 'nftnumlist.log'
-    is_nftnums = isfile(nftnums)
-    if not is_nftnums:
-        try:
-            open(nftnums, 'x')
-        except OSError:
-            pass
-    with open(nftnums, 'w') as instantiate_nftlist:
-        instantiate_nftlist.write(','.join(nftrange))
-        instantiate_nftlist.close()
     return [
         'Enter Asset Name:',
         'Enter Display Name:',
@@ -49,10 +77,19 @@ def do_settings(campaign_name, campaign_root):
 
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
-    if len(payer_asset_string) > TKN_LIMIT:
+    if LIMIT_TKNS is True and len(payer_asset_string) > TKN_LIMIT:
         return False, 'refund', tx_meta_json, mint_qty_int
+    # payer_assets_tx = payer_asset_string.split('+mwl+')[0]
+    # payer_assets_own = payer_asset_string.split('+mwl+')[1]
     # BEGIN Customize Vars/Setting Assignments
-    seed = payer_addr
+    payer_stake = payer_addr
+    if USE_STAKE is True:
+        if len(payer_addr.strip()) == 103:
+            payer_stake = payer_addr.strip()[52:-6]
+        if len(payer_addr.strip()) == 108:
+            payer_stake = payer_addr.strip()[57:-6]
+    seed = payer_stake
+    campaign_path = settings[0]
     nftbasename = settings[2]
     nftlongname = settings[3]
     pn_key = settings[4]
@@ -61,32 +98,28 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
     enable_html = False
     # END custom vars
 
+    # Random seed based on Wallet, Addr, or Wallet + Time
     random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
+    # random.seed(seed)
+
     err_bool = False
     nettype = 'mainnet'
     if is_test is True:
         nettype = 'testnet'
-    campaign_path = osjoin(osjoin(settings[0], nettype), '')
+    campaign_path = osjoin(osjoin(campaign_path, nettype), '')
     queued = osjoin(osjoin(osjoin(osjoin(osjoin(campaign_path, 'minting'), ''), 'auto'), 'queued'), '')
-    cache_dir = osjoin(osjoin(osjoin(dirname(dirname(dirname(dirname(campaign_path)))), 'plugins'), 'cyphermonkcache'), '')
-    colour_wheel_src = cache_dir + 'colours.log'
-    is_colour_wheel = isfile(colour_wheel_src)
-    if not is_colour_wheel:
-        try:
-            open(colour_wheel_src, 'x')
-        except OSError:
-            pass
-    shufflelog_file = cache_dir + 'shuffle.log'
-    is_shuffle = isfile(shufflelog_file)
-    if not is_shuffle:
-        try:
-            open(shufflelog_file, 'x')
-        except OSError:
-            pass
-    nftnum_list = cache_dir + 'nftnumlist.log'
-    is_nftnums = isfile(nftnum_list)
-    if not is_nftnums:
-        return True, '', tx_meta_json, mint_qty_int
+    cache_dir = osjoin(osjoin(osjoin(campaign_path, 'plugin'), CACHE_NAME), '')
+    colour_wheel_src = cache_dir + COL_LOG
+    shufflelog_file = cache_dir + SHUF_LOG
+    nftnum_list = cache_dir + NUM_LIST_FILE
+    altnum_count = cache_dir + ALT_COUNT_FILE
+    file_ini_list = []
+    file_ini_list += [colour_wheel_src]
+    file_ini_list += [shufflelog_file]
+    file_ini_list += [nftnum_list]
+    file_ini_list += [altnum_count]
+    for fileini in file_ini_list:
+        init_file(fileini)
     if enable_html is True:
         JSON_TEMP = '{"721": {"POLICY_ID": {"NFT_NAME": {"name": "NFT_LONG_NAME", "artist": "CypherMonks.com", "footnotes": "Cypherdelic Monks of Cardano", "spectrum": SPECTRUM, "attributes": [ATT_LIST],NFT_RARITY"image": "IPFS_HASH", "files": [{"mediaType": "text/html", "src": HTML_DATA}]}}}}'
     else:
@@ -95,7 +128,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         nft_list_ini = numlistfile.read().split(',')
         numlistfile.close()
     if len(nft_list_ini) == 0:
-        return True, '', tx_meta_json, mint_qty_int
+        return True, 'zero', tx_meta_json, mint_qty_int
     if len(nft_list_ini) < mint_qty_int:
         mint_qty_int = len(nft_list_ini)
 
@@ -114,8 +147,9 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         return html_result
 
     def pinnata(pn_key, pn_sec, file):
-        from requests import post as rpost, models
-        errors = [False]
+        from requests import models
+        pinned_hash = 'Unknown Error'
+        errors = False
         ipfs_url = 'https://api.pinata.cloud/pinning/pinFileToIPFS'
         ipfs_data, ipfs_content_type = models.RequestEncodingMixin._encode_files(file, {})
         ipfs_headers = {"Content-Type": ipfs_content_type, "pinata_api_key": pn_key, "pinata_secret_api_key": pn_sec}
@@ -123,32 +157,52 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         wait_for_api = True
         while wait_for_api:
             ipfs_ret = rpost(ipfs_url, data=ipfs_data, headers=ipfs_headers)
-            if 'status_code' in ipfs_ret.json():
+            if 'Response [200]' not in str(ipfs_ret):
                 sleep(3)
-                # status_code = ipfs_ret.json()['status_code']
                 limit += 1
                 if limit == 10:
                     wait_for_api = False
-                    errors = [True, 'Timed Out Trying to Connect to Pinata API!']
+                    errors = True
+                    pinned_hash = 'Error trying to pin to Pinata API: ' + str(ipfs_ret)
             else:
                 wait_for_api = False
                 pinned_hash = ipfs_ret.json()['IpfsHash']
-        if errors[0] is True:
-            return errors, ''
+        return errors, pinned_hash
+
+    def infura(pid, psec, file):
+        ipfs_url = 'https://ipfs.infura.io:5001/api/v0/add'
+        pinned_hash = 'Unknown Error'
+        errors = False
+        limit = 0
+        wait_for_api = True
+        while wait_for_api:
+            ipfs_ret = rpost(ipfs_url, files=file, auth=(pid, psec))
+            if 'Response [200]' not in str(ipfs_ret):
+                sleep(3)
+                limit += 1
+                if limit == 10:
+                    wait_for_api = False
+                    errors = True
+                    pinned_hash = 'Error trying to pin to Infura API: ' + str(ipfs_ret)
+            else:
+                wait_for_api = False
+                pinned_hash = ipfs_ret.text.split(',')[1].split(':')[1].replace('"', '')
+        # debug_log(pinned_hash)
         return errors, pinned_hash
 
     # CypherMonk Artist
     mint_loop = mint_qty_int
+    mint_count = 0
     while mint_loop > 0:
+        if mint_count == MINT_RESEED:
+            seed = strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + payer_stake
+            mint_count = 0
+        mint_count += 1
+        sleep(7)
         with open(nftnum_list, 'r') as numlistfile:
             nft_list = numlistfile.read().split(',')
             numlistfile.close()
-        nft_num = nft_list.pop(random.randrange(len(nft_list)))
-        with open(nftnum_list, 'w') as update_numlist:
-            update_numlist.write(','.join(nft_list))
-            update_numlist.close()
-        nftname = nftbasename + nft_num
-        nftlongname_display = nftlongname + ' #' + nft_num
+        nft_to_pop = random.randrange(len(nft_list))
         mint_loop -= 1
         unique_log = ''
         nft_rarity = ''
@@ -157,12 +211,12 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         tune_each_colour_unique = False  # False means each set of colours is unique to its address/seed
         tune_sm_force = False  # Enforce smoke
         tune_sm_alpha = False  # Enforce alpha for fire
-        tune_sg_force = True  # Enforce sunglasses
+        tune_sg_force = False  # Enforce sunglasses
         tune_sg_alpha = True  # Allow for multicolour glasses / Disables multicolour background - convert to derived option
         tune_sg_alpha_prob = 8  # Probability of multicolour glasses
         tune_canvass_inner_row_a = 2  # Good: Row repeat count
-        tune_canvass_count = ''  # Override for automated canvass generator
-        tune_canvass_min = 3
+        tune_canvass_count = 6 #''  # Override for automated canvass generator
+        tune_canvass_min = 4 #3
         # TODO : do away with alpha global after background colours are all selected
         tune_global_alpha = ''  # 200  # Global transparency of all colours
         tune_alpha_min = 240
@@ -173,11 +227,13 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         tune_pixel_set4 = 744
         tune_canvass_seeded = True
         tune_canvass_row_uniqueness = False  # Randomizes later, this is an override. Set to '' to disable override
-        tune_colour_pallette = 0
+        tune_colour_pallette = 12 #0
         tune_canvass_shift_colours = True
         tune_bg_force_colour = ''
         tune_bg_prelist = True
-        tune_colour_deviation_at_random = 30  # Minimum is 3%
+        tune_bg_alt_rand = True
+        tune_allow_sg_bg_alt = True  # allow shades for back of alt winter monk
+        tune_colour_deviation_at_random = 90  #30 Minimum is 3%
 
         if tune_colour_deviation_at_random < 3:
             tune_colour_deviation_at_random = 3
@@ -247,6 +303,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         # Individual Sets
         bd = (0, 0, 0, 255)  # Body Outline
         bg_opts = []
+        bg_opts_alt = []
         if tune_bg_prelist is True:
             bg_opts = [ada_blue, eth_blue, btc_gold, cm_original, diamond, radioactive, darkpurple, skyblue, limegreen, cloudyday, blue_dawn, middayblue, hazyblue, rich_blue, copper, teal, rich_pink, faded_pink, ada_blue_alpha, eth_blue_alpha, btc_gold_alpha, cm_original_alpha, diamond_alpha, radioactive_alpha, darkpurple_alpha, skyblue_alpha, limegreen_alpha, cloudyday_alpha, blue_dawn_alpha, middayblue_alpha, hazyblue_alpha, rich_blue_alpha, copper_alpha, teal_alpha, rich_pink_alpha, faded_pink_alpha]
         sg_opts = [btc_gold_alpha, ada_blue_alpha, diamond_alpha, cm_original_alpha, eth_blue_alpha, slate_alpha_light, slate_alpha, white_alpha]  # Sunglasses
@@ -289,7 +346,6 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                             colour_list[colourkey] = (colour_item - adj_num)
                         else:
                             colour_list[colourkey] = (colour_item + adj_num)
-
                 colour_chosen = (colour_list[0], colour_list[1], colour_list[2], tune_global_alpha)
                 if colour_chosen != white_opac:
                     unique_is = True
@@ -479,6 +535,8 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             fh = random.choice(variants[1])
             fs = random.choice(variants[2])
             sk = random.choice(variants[3])
+            if sk[3] != 255:
+                sk = (sk[0], sk[1], sk[2], 255)
             eb = random.choice(variants[4])
             ew = random.choice(variants[5])
             ep = random.choice(variants[6])
@@ -493,7 +551,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             if tune_sm_force is True:
                 sm_active = True
             else:
-                sm_active = random.choice([True, False])
+                sm_active = random.choice([True, False, False, False]) # 25% Chance of smoke
 
             if sm_active is True:
                 # TODO : Return to opts and do work there
@@ -517,7 +575,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             if tune_sg_force is True:
                 sg = random.choice(sg_opts)
             else:
-                sg = random.choice([random.choice(sg_opts), sk])
+                sg = random.choice([random.choice(sg_opts), sk, sk]) # 33% chance of shades
             # Eyes if no shades
             if sk != sg:
                 ep = ew = eb = sg
@@ -538,40 +596,6 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
 
             # Check if minted
             # Monk Templates
-            cm_winter = [
-                [bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bg, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fh, fh, fh, fh, fh, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fh, fh, fh, fh, fh, fh, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fs, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fs, fh, fh, fh, fs, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fh, fh, fh, fh, fs, fs, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fs, fs, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, fs, fs, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bd, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fs, fh, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, fs, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fh, fh, fh, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bd, fs, fs, fs, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, fs, fs, bd, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, bd, bd, fs, fs, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, fs, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, fs, fs, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, bd, bd, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, bd, bd, fs, fs, fs, fs, fs, bd, bd, bd, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bg, bg, bd, bd, fs, fs, fs, fc, fs, fs, bd, bd, bd, bd, bd, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, bd, fs, fs, fc, fc, fc, fc, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, fs, fs, fs, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg],
-                [bd, bd, bd, bd, bd, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, bd, bg, bg, bg],
-                [bd, fs, fs, fc, bd, bd, fc, fc, fc, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, bg, bg],
-                [fs, fs, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, bd, fs, fs, fs, fs, fs, fs, fs, bd, bd, bg],
-                [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, fs, fc, fc, fc, fs, fs, fs, fs, bd, bd],
-                [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, bd, fs, fs, bd, bd, bd, fs, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd],
-                [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs, fs, fs, fs, fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs],
-            ]
             cm_orig = [
                 [bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg, bg],
                 [bg, bg, bg, bg, bg, bg, bg, bg, bg, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg, bg, bg, sz, bg, bg, bg, bg, bg, bg, bg],
@@ -606,10 +630,78 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs, fs, fs, bd, bd, bd, fs, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd],
                 [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs, fs, fs, fs, fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs],
             ]
-            random_monk = [cm_winter, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_winter, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig, cm_orig]
-
+            random_monk = range(1, 100)
             # Create images
-            chosen_list = random.choice(random_monk)
+            chosen_list = cm_orig
+            get_random_monk = random.choice(random_monk)
+            if get_random_monk == 1 or get_random_monk == 47:
+                if tune_bg_alt_rand is True:
+                    alt_bg_color_grid = [[],[],[],[],[],[],[],[],[]]
+                    for ck, color_chosen in enumerate(alt_bg_color_grid):
+                        alt_bg_color_grid[ck] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), tune_global_alpha)
+                    bg_opts_alt = random.choice(alt_bg_color_grid)
+                if not bg_opts_alt:
+                    _g = bg
+                else:
+                    _g = bg_opts_alt
+                _g = bg
+                # Override tweak for shades to be winger back
+                if tune_allow_sg_bg_alt is True and sk == sg:
+                    _g = sg
+                cm_winter = [
+                    [_g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, _g, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fh, fh, fh, fh, fh, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fh, fh, fh, fh, fh, fh, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fs, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fh, fh, fh, fs, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fh, fh, fh, fh, fs, fs, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fs, fs, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, fs, fs, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, _g, bd, fs, fs, fh, fh, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, bd, fs, fs, fh, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, fs, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, bd, fs, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, _g, bd, fs, fh, fh, fh, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, _g, bd, fs, fs, fs, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, fs, fs, bd, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, bd, bd, fs, fs, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, fs, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, fs, fs, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, bd, bd, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, bd, bd, fs, fs, fs, fs, fs, bd, bd, bd, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [_g, _g, bd, bd, fs, fs, fs, fc, fs, fs, bd, bd, bd, bd, bd, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, bd, fs, fs, fc, fc, fc, fc, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, fs, fs, fs, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g],
+                    [bd, bd, bd, bd, bd, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, bd, _g, _g, _g],
+                    [bd, fs, fs, fc, bd, bd, fc, fc, fc, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, _g, _g],
+                    [fs, fs, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, bd, fs, fs, fs, fs, fs, fs, fs, bd, bd, _g],
+                    [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, fs, fc, fc, fc, fs, fs, fs, fs, bd, bd],
+                    [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, bd, fs, fs, bd, bd, bd, fs, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd],
+                    [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs, fs, fs, fs, fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, fs],
+                ]
+                chosen_list = cm_winter
+                with open(altnum_count, 'r') as alt_count:
+                    alt_cnt = alt_count.readline()
+                    alt_count.close()
+                if alt_cnt == '':
+                    alt_cnt = '0'
+                nft_num = str(alt_cnt).zfill(ALT_LEAD_ZEROS)
+                num_out = str(int(alt_cnt) + 1)
+                with open(altnum_count, 'w') as alt_cupd:
+                    alt_cupd.write(num_out)
+                    alt_cupd.close()
+                nftname = NFT_ALT_NAME + nft_num
+                nftlongname_display = NFT_ALT_LONG + ' #' + nft_num
+            else:
+                nft_num = nft_list.pop(nft_to_pop)
+                with open(nftnum_list, 'w') as update_numlist:
+                    update_numlist.write(','.join(nft_list))
+                    update_numlist.close()
+                nftname = nftbasename + nft_num
+                nftlongname_display = nftlongname + ' #' + nft_num
             monk_gen = True
             try:
                 monk_array = np.array(chosen_list, dtype=np.uint8)
@@ -628,8 +720,11 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
 
         # Pin image
         while True:
-            pinerr, ipfs_hash = pinnata(pn_key, pn_sec, {'file': open(imgfile, 'rb')})
-            if pinerr[0] is False:
+            if USE_PINATA is True:
+                pinerr, ipfs_hash = pinnata(pn_key, pn_sec, {'file': open(imgfile, 'rb')})
+            if USE_INFURA is True:
+                pinerr, ipfs_hash = False, 'TESTHASH' #infura(pn_key, pn_sec, {'file': imgfile})
+            if pinerr is False:
                 ipfs_hash = 'ipfs://' + ipfs_hash
                 break
 
@@ -639,7 +734,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             dl = list(dab)
             dl[3] = round(float(dl[3] / 255), 2)
             swatch[key] = tuple(dl)
-        html = '<div style="margin:0 auto;width:380px;height:420px;text-align:center;background-color:rgba' + str(bg) + ';border-radius:32px;overflow:hidden;max-width:380px;min-height:420px;"><div style="height:320px;width:auto;margin:12px 4px 0 4px;position:relative;"><div class="nft"><img src="ipfs://' + ipfs_hash + '"></div><div class="swatch"><div style="display:block;width:100%;height:10%;background:#3e3e3e;font-family:arial;font-weight:bold;color:#d3d3d3;min-height:40px;line-height:40px;">CypherSwatch</div>'
+        html = '<div style="margin:0 auto;width:380px;height:420px;text-align:center;background-color:rgba' + str(bg) + ';border-radius:32px;overflow:hidden;max-width:380px;min-height:420px;"><div style="height:320px;width:auto;margin:12px 4px 0 4px;position:relative;"><div class="nft"><img src="https://nftstorage.link/ipfs/' + ipfs_hash.split('://')[1] + '"></div><div class="swatch"><div style="display:block;width:100%;height:10%;background:#3e3e3e;font-family:arial;font-weight:bold;color:#d3d3d3;min-height:40px;line-height:40px;">CypherSwatch</div>'
         swatch_css = '<style>.swatch{display:block;width:90%;height:90%;min-height:320px;position:absolute;top:31px;left:19px;opacity:0;box-shadow:0 0 20px 3px #272727;transition:opacity 0.4s ease-in-out}.swatch:hover{opacity:1;transition:opacity 0.4s ease-in-out}[id^=swatch_colour]{display:block;width:33.33%;height:93.33px;float:left}[id^=swatch_colour]:hover{color:red}.nft>img{display:block;position:absolute;top:24px;left:5%;max-width:90%;}'
         for skey, si in enumerate(swatch):
             swatch_css += '#swatch_colour' + str(skey) + '{background:rgba' + str(si) + '}'
