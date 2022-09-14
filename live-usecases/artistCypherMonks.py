@@ -1,6 +1,7 @@
 import json
 import numpy as np
 import random
+from datetime import datetime, date
 from getopt import getopt
 from os import mkdir
 from os.path import isfile, join as osjoin
@@ -18,10 +19,11 @@ LIMIT_TKNS = False
 TKN_LIMIT = 400
 TOTAL_TO_MINT = 5000
 USE_STAKE = False
-RAFFLE = True
 RAFFLE_ASSET = ''
 MINT_RESEED = 4
 ALT_LEAD_ZEROS = 2
+INC_SVG = False
+TUNE_SEED_TIME = True
 
 CACHE_NAME = 'cyphermonkcache'
 NUM_LIST_FILE = 'nftnumlist.log'
@@ -77,10 +79,22 @@ def do_settings(campaign_name, campaign_root):
 
 # Customize plugin code
 def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int):
+
+    def get_shuffled_time(seed, shuffle=True):
+        time_now = int(str(datetime.now().time()).replace(':', '').replace('.', ''))
+        if shuffle is False:
+            return str(time_now)
+        random.seed(time_now)
+        time_now = list(str(time_now))
+        random.shuffle(time_now)
+        shuf_time = ''
+        for L in time_now:
+            shuf_time += L
+        return shuf_time
+
     if LIMIT_TKNS is True and len(payer_asset_string) > TKN_LIMIT:
         return False, 'refund', tx_meta_json, mint_qty_int
-    # payer_assets_tx = payer_asset_string.split('+mwl+')[0]
-    # payer_assets_own = payer_asset_string.split('+mwl+')[1]
+
     # BEGIN Customize Vars/Setting Assignments
     payer_stake = payer_addr
     if USE_STAKE is True:
@@ -88,7 +102,11 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             payer_stake = payer_addr.strip()[52:-6]
         if len(payer_addr.strip()) == 108:
             payer_stake = payer_addr.strip()[57:-6]
+    if 'addr' in payer_stake:
+        payer_stake = payer_stake.split('addr')[0] + payer_stake.split('addr')[1]
     seed = payer_stake
+    if TUNE_SEED_TIME is True:
+        seed = get_shuffled_time(seed, False) + payer_stake
     campaign_path = settings[0]
     nftbasename = settings[2]
     nftlongname = settings[3]
@@ -96,12 +114,6 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
     pn_sec = settings[5]
     # static settings
     enable_html = False
-    # END custom vars
-
-    # Random seed based on Wallet, Addr, or Wallet + Time
-    random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
-    # random.seed(seed)
-
     err_bool = False
     nettype = 'mainnet'
     if is_test is True:
@@ -167,6 +179,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             else:
                 wait_for_api = False
                 pinned_hash = ipfs_ret.json()['IpfsHash']
+                break
         return errors, pinned_hash
 
     def infura(pid, psec, file):
@@ -187,17 +200,34 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             else:
                 wait_for_api = False
                 pinned_hash = ipfs_ret.text.split(',')[1].split(':')[1].replace('"', '')
+                break
         # debug_log(pinned_hash)
         return errors, pinned_hash
+
 
     # CypherMonk Artist
     mint_loop = mint_qty_int
     mint_count = 0
+    decked_out = False
+    bg_opts = []
+    bg_new = True
+    total_mint_count = 0
+    randmaster = []
+    swatch = []
     while mint_loop > 0:
+        tune_bg_build = 9
         if mint_count == MINT_RESEED:
-            seed = strftime("%Y-%m-%d_%H-%M-%S", gmtime()) + payer_stake
+            seed = get_shuffled_time(seed) + payer_stake
             mint_count = 0
+            decked_out = False
+            randmaster = []
+            swatch = []
+            if total_mint_count == tune_bg_build:
+                bg_opts = []
+                bg_new = True
+        random.seed(seed)
         mint_count += 1
+        total_mint_count += 1
         sleep(7)
         with open(nftnum_list, 'r') as numlistfile:
             nft_list = numlistfile.read().split(',')
@@ -208,18 +238,20 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         nft_rarity = ''
 
         # Tuning Nobs
-        tune_each_colour_unique = False  # False means each set of colours is unique to its address/seed
+        reenable_bug = False
+        tune_each_colour_unique = True  # False means each set of colours is unique to its address/seed
         tune_sm_force = False  # Enforce smoke
         tune_sm_alpha = False  # Enforce alpha for fire
         tune_sg_force = False  # Enforce sunglasses
         tune_sg_alpha = True  # Allow for multicolour glasses / Disables multicolour background - convert to derived option
         tune_sg_alpha_prob = 8  # Probability of multicolour glasses
         tune_canvass_inner_row_a = 2  # Good: Row repeat count
-        tune_canvass_count = 6 #''  # Override for automated canvass generator
-        tune_canvass_min = 4 #3
+        tune_canvass_count = ''  # Override for automated canvass generator
+        tune_canvass_min = 3
         # TODO : do away with alpha global after background colours are all selected
         tune_global_alpha = ''  # 200  # Global transparency of all colours
         tune_alpha_min = 240
+        tune_out_pxltd = 32  # Size of pizelated output
         tune_out_wh = 640  # Pixel Width/Height for output image
         tune_pixel_set1 = 64
         tune_pixel_set2 = 520
@@ -227,10 +259,22 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         tune_pixel_set4 = 744
         tune_canvass_seeded = True
         tune_canvass_row_uniqueness = False  # Randomizes later, this is an override. Set to '' to disable override
-        tune_colour_pallette = 12 #0
+        tune_colour_pallette = 44 #0
         tune_canvass_shift_colours = True
+        tune_canvass_knob1 = 0.3
+        tune_canvass_knob2 = 89
+        tune_canvass_knob3 = 0.28
+        tune_canvass_knob4 = 0.12
+        tune_canvass_knob5 = 0.68
+        tune_canvass_knob6 = 0.6
+        tune_canvass_knob7 = 0.3625
+        tune_canvass_knob8 = 0.03
+        tune_canvass_knob9 = 0.02
+        tune_canvass_rotateel = 45
+        tune_frock_greys = False
         tune_bg_force_colour = ''
         tune_bg_prelist = True
+        tune_allow_append_rand_bg = True
         tune_bg_alt_rand = True
         tune_allow_sg_bg_alt = True  # allow shades for back of alt winter monk
         tune_colour_deviation_at_random = 90  #30 Minimum is 3%
@@ -256,6 +300,9 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         slate_alpha = (25, 25, 25, 190)
         slate_alpha_light = (25, 25, 25, 20)
         white_alpha = (255, 255, 255, 255, 190)
+
+        # Monk specific
+        tune_always_winter_hair = True
 
         # Other Backgrounds
         radioactive = (7, 249, 139, 255)
@@ -287,24 +334,30 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
 
         # Variants Set
         variants = [
-            [(142, 139, 139, 255), (116, 116, 116, 255)],  # frock primary colour
-            [(58, 58, 58, 255)],  # frock highlight colour
-            [(96, 96, 96, 255), (58, 58, 58, 255)],  # frock shadow colour
+            [],  # frock primary colour
+            [],  # frock highlight colour
+            [],  # frock shadow colour
             [],  # skin colour
             [],  # eyebrow colour
             [],  # eyewhites colour
             [],  # eye pupil colour
             [],  # mouth colour
+            [],  # smoke
+            [],  # smoke
+            [],  # smoke
         ]
+        if tune_frock_greys is True:
+            variants[0] = [(142, 139, 139, 255), (116, 116, 116, 255)]
+            variants[1] = [(58, 58, 58, 255)]
+            variants[2] = [(96, 96, 96, 255), (58, 58, 58, 255)]
         variant_count = len(variants)
         if tune_colour_pallette < (variant_count + 1):
             tune_colour_pallette = (variant_count + 1)
 
         # Individual Sets
         bd = (0, 0, 0, 255)  # Body Outline
-        bg_opts = []
         bg_opts_alt = []
-        if tune_bg_prelist is True:
+        if tune_bg_prelist is True and not bg_opts:
             bg_opts = [ada_blue, eth_blue, btc_gold, cm_original, diamond, radioactive, darkpurple, skyblue, limegreen, cloudyday, blue_dawn, middayblue, hazyblue, rich_blue, copper, teal, rich_pink, faded_pink, ada_blue_alpha, eth_blue_alpha, btc_gold_alpha, cm_original_alpha, diamond_alpha, radioactive_alpha, darkpurple_alpha, skyblue_alpha, limegreen_alpha, cloudyday_alpha, blue_dawn_alpha, middayblue_alpha, hazyblue_alpha, rich_blue_alpha, copper_alpha, teal_alpha, rich_pink_alpha, faded_pink_alpha]
         sg_opts = [btc_gold_alpha, ada_blue_alpha, diamond_alpha, cm_original_alpha, eth_blue_alpha, slate_alpha_light, slate_alpha, white_alpha]  # Sunglasses
         # sm_opts = [(148, 92, 16, 255)]
@@ -315,7 +368,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         bg = transparent
 
         # Begin Processing
-        random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
+        random.seed(seed + get_shuffled_time(seed))  # Deviate between each nft
         if tune_global_alpha == '':
             tune_global_alpha = random.choice([random.randint(tune_alpha_min, 254), 255])
         if tune_canvass_count == '':
@@ -324,46 +377,58 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             else:
                 tune_canvass_count = tune_canvass_min
         random.seed(seed)
-        randmaster = []
-        swatch = []
         count_colours = 0
-        if not bg_opts:
-            bg_opts += [(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), tune_global_alpha)]
-        while count_colours < tune_colour_pallette:
-            while True:
-                if count_colours == 0:
-                    colour_list = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
-                else:
-                    for colourkey, colour_item in enumerate(colour_list):
-                        minus = False
-                        adj_num = random.randint(4, adj_colour)
-                        if int(colour_item - adj_colour) >= 0:
-                            if int(colour_item + adj_colour) > 255:
-                                minus = True
+        if not bg_opts or (tune_allow_append_rand_bg is True and bg_new is True):
+            bg_new = False
+            bg_trim = True
+            bg_rand_alts_count = 0
+            while tune_bg_build > bg_rand_alts_count:
+                bg_rand_alts_count += 1
+                get_rand_color = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
+                random.shuffle(get_rand_color)
+                bg_opts += [(get_rand_color[0], get_rand_color[1], get_rand_color[2], tune_global_alpha)]
+        if not randmaster:
+            while count_colours < tune_colour_pallette:
+                temp_redo_check = False
+                while True:
+                    if temp_redo_check is True:
+                    if count_colours == 0:
+                        colour_list = [random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)]
+                        random.shuffle(colour_list)
+                    else:
+                        for colourkey, colour_item in enumerate(colour_list):
+                            minus = False
+                            adj_num = random.randint(4, adj_colour)
+                            if int(colour_item - adj_colour) >= 0:
+                                if int(colour_item + adj_colour) > 255:
+                                    minus = True
+                                else:
+                                    minus = random.choice([True, False])
+                            if minus is True:
+                                colour_list[colourkey] = (colour_item - adj_num)
                             else:
-                                minus = random.choice([True, False])
-                        if minus is True:
-                            colour_list[colourkey] = (colour_item - adj_num)
-                        else:
-                            colour_list[colourkey] = (colour_item + adj_num)
-                colour_chosen = (colour_list[0], colour_list[1], colour_list[2], tune_global_alpha)
-                if colour_chosen != white_opac:
-                    unique_is = True
-                    with open(colour_wheel_src, 'r') as colour_wheel:
-                        for line in colour_wheel:
-                            if (str(colour_chosen) in line) and (seed not in line):
-                                unique_is = False
-                                break
-                        colour_wheel.close()
-                    if unique_is is True:
-                        break
-            if tune_each_colour_unique is True:
-                with open(colour_wheel_src, 'a') as colour_wheel_add:
-                    colour_wheel_add.write(str(colour_chosen) + '\n')
-                    colour_wheel_add.close()
-            randmaster += [colour_chosen]
-            swatch += [colour_chosen]
-            count_colours += 1
+                                colour_list[colourkey] = (colour_item + adj_num)
+                    colour_chosen = (colour_list[0], colour_list[1], colour_list[2], tune_global_alpha)
+                    colour_rgb = str((colour_list[0], colour_list[1], colour_list[2]))
+                    if colour_chosen != white_opac:
+                        unique_is = True
+                        with open(colour_wheel_src, 'r') as colour_wheel:
+                            for line in colour_wheel:
+                                if (colour_rgb in line) and (seed not in line):
+                                    temp_redo_check = True
+                                    unique_is = False
+                                    break
+                            colour_wheel.close()
+                        if unique_is is True:
+                            break
+                if tune_each_colour_unique is True:
+                    with open(colour_wheel_src, 'a') as colour_wheel_add:
+                        colour_wheel_add.write(colour_rgb + '\n')
+                        colour_wheel_add.close()
+                randmaster += [colour_chosen]
+                swatch += [colour_chosen]
+                count_colours += 1
+        # TODO: Fix the color to only add the RGB portion to the log
         if tune_each_colour_unique is False:
             count_spect = 0
             for randc in randmaster:
@@ -377,7 +442,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 colour_wheel_add.close()
 
         # Unique Colour Canvass
-        random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
+        random.seed(seed + get_shuffled_time(seed))
         if tune_canvass_row_uniqueness == '':
             tune_canvass_row_uniqueness = random.choice([True, False])
         while True:
@@ -410,8 +475,11 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         if tune_canvass_seeded is True:
             random.seed(seed)
         else:
-            random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
+            random.seed(seed + get_shuffled_time(seed))
+        reseed_fr_er = False
         while True:
+            if reseed_fr_er is True:
+                random.seed(seed + get_shuffled_time(seed))
             num_hi = random.randint(pixel_range_lo, pixel_range_hi)
             count_i = num_hi
             canvass = []
@@ -425,7 +493,9 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             prev_colour_d = 0
             row_count = 0
             colour_zero = []
-            for row, line in enumerate(canvass):
+            count_line = 0
+            for row, canvass_line in enumerate(canvass):
+                count_line += 1
                 if row_count == 0:
                     if tune_canvass_row_uniqueness is False:
                         prev_colour = random.choice(randmaster)
@@ -448,6 +518,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                     if tune_canvass_shift_colours is True:
                         prev_colour_c = prev_colour_d
                 row_count += 1
+
                 if row_count < tune_canvass_inner_row_a:
                     colour_zero.append(random.choice(sg_opts))
                 coin_one = [prev_colour_d, prev_colour_d, prev_colour_d, prev_colour_d, prev_colour_d, prev_colour_a, prev_colour_a, prev_colour_a, prev_colour_a, prev_colour_a, prev_colour, prev_colour, prev_colour, prev_colour, prev_colour, prev_colour_b, prev_colour_b, prev_colour_b, prev_colour_b, prev_colour_b, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c, prev_colour_c]
@@ -458,42 +529,42 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 coin_toss = [[colour_zero, coin_one, coin_two], [coin_three, coin_four, coin_five]]
                 coin_toss = random.choice(coin_toss)
                 coin_toss = random.choice(coin_toss)
-                for pixel, column in enumerate(line):
+                for pixel, column in enumerate(canvass_line):
                     canvass[row][pixel] = prev_colour = random.choice([random.choice(coin_toss)])
 
             # Generate canvass image
-            random.seed(seed + strftime("%Y-%m-%d_%H-%M-%S", gmtime()))
+            random.seed(seed) #prev + time
             canvass_gen = True
             rotate_canvass = 0
-            size_canvass = tune_out_wh
+            size_canvass_full = tune_out_wh
             if canvass_count > 0:
                 if (canvass_count + 2) == tune_canvass_count:
-                    size_canvass = int(tune_out_wh * 0.3)
+                    size_canvass_full = int(tune_out_wh * tune_canvass_knob1)
                     tune_main_rotate = random.randint(1, 100)
-                    if tune_main_rotate > 89 and tune_global_alpha != 255:
+                    if tune_main_rotate > tune_canvass_knob2 and tune_global_alpha != 255:
                         rotate_canvass = 0
                     else:
-                        rotate_canvass = 45  # random.choice([90, 45, 0])
-                        size_canvass = int(tune_out_wh * 0.28)
+                        rotate_canvass = tune_canvass_rotateel
+                        size_canvass_full = int(tune_out_wh * tune_canvass_knob3)
                 elif (canvass_count + 1) == tune_canvass_count:
                     rotate_canvass = 0
-                    size_canvass = int(tune_out_wh * 0.12)
+                    size_canvass_full = int(tune_out_wh * tune_canvass_knob4)
                 else:
                     break
-                #    rotate_canvass = random.randint(0, 270)
-                #    size_canvass = random.randint(int(tune_out_wh * 0.05), int(tune_out_wh * 0.75))
+            with open('_canvass', 'w') as dump_canvass:
+                json.dump(canvass, dump_canvass, indent=2) 
+                dump_canvass.close()
+            #with open('_canvass', 'r') as load_canvass:
+            ##    canvass = json.load(load_canvass)
+            #    load_canvass.close()
             try:
                 canvass_array = np.array(canvass, dtype=np.uint8)
                 canvass_image = Image.fromarray(canvass_array, mode='RGBA')
-                canvass_image = canvass_image.resize((size_canvass, size_canvass), resample=Image.NEAREST).rotate(rotate_canvass)
+                canvass_image = canvass_image.resize((size_canvass_full, size_canvass_full), resample=Image.NEAREST).rotate(rotate_canvass)
             except Exception:
                 canvass_gen = False
             if canvass_gen is True:
                 if canvass_count > 0:
-                    # x1 = int(.5 * canvass_image.size[0]) - int(.5 * canvass_image.size[0])
-                    # y1 = int(.5 * canvass_image.size[1]) - int(.5 * canvass_image.size[1])
-                    # x2 = int(.5 * canvass_image.size[0]) + int(.5 * canvass_image.size[0])
-                    # y2 = int(.5 * canvass_image.size[1]) + int(.5 * canvass_image.size[1])
                     w, h = canvass_image.size
                     out_w, out_h = out_canvass.size
                     y_coord = (out_w - w)
@@ -505,12 +576,12 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                         canvass_x = int(canvass_x / ratio)
                         canvass_y = int(canvass_y / ratio)
                     if (canvass_count + 1) == tune_canvass_count:
-                        canvass_x, canvass_y = int(tune_out_wh * 0.68), int(tune_out_wh * 0.6)
+                        canvass_x, canvass_y = int(tune_out_wh * tune_canvass_knob5), int(tune_out_wh * tune_canvass_knob6)
                     if (canvass_count + 2) == tune_canvass_count:
-                        last_coords = int(tune_out_wh * 0.3625)
+                        last_coords = int(tune_out_wh * tune_canvass_knob7)
                         canvass_x, canvass_y = last_coords, last_coords
-                    if rotate_canvass == 45:
-                        canvass_x, canvass_y = canvass_x + int(tune_out_wh * 0.03), canvass_y - int(tune_out_wh * 0.02)
+                    if rotate_canvass == tune_canvass_rotateel:
+                        canvass_x, canvass_y = canvass_x + int(tune_out_wh * tune_canvass_knob8), canvass_y - int(tune_out_wh * tune_canvass_knob9)
                     try:
                         out_canvass.paste(canvass_image, (canvass_x, canvass_y), mask=canvass_image)  # box=(x1, y1, x2, y2)
                     except Exception:
@@ -519,33 +590,62 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 else:
                     original = out_canvass = canvass_image
                 canvass_count += 1
+            else:
+                reseed_fr_er = True
             if canvass_count == tune_canvass_count:
+                print('break 2')
                 break
         # out_canvass.show()
-        # exit(0)
 
         # Reset seed for unique datetimestring
+        random.seed(get_shuffled_time(seed) + payer_stake)
         while True:
+            countthis = 0
             for variant in variants:
+                countthis += 1
                 try:
                     variant.append(randmaster.pop())
                 except Exception:
                     continue
-            fc = random.choice(variants[0])
-            fh = random.choice(variants[1])
-            fs = random.choice(variants[2])
-            sk = random.choice(variants[3])
+            if tune_frock_greys is True:
+                fc_o = variants[0].pop()
+                fh_o = variants[1].pop()
+                fs_o = variants[2].pop()
+                fc = random.choice(variants[0].append(fc_o))
+                fh = random.choice(variants[1].append(fh_o))
+                fs = random.choice(variants[2].append(fs_o))
+                if fc != fc_o:
+                    randmaster.append(fc_o)
+                if fh != fh_o:
+                    randmaster.append(fh_o)
+                if fs != fs_o:
+                    randmaster.append(fs_o)
+            else:
+                fc = variants[0][0]
+                fh = variants[1][0]
+                fs = variants[2][0]
+            sk = variants[3][0]
             if sk[3] != 255:
                 sk = (sk[0], sk[1], sk[2], 255)
-            eb = random.choice(variants[4])
-            ew = random.choice(variants[5])
-            ep = random.choice(variants[6])
-            mt = random.choice(variants[7])
+            eb = variants[4][0]
+            if eb[3] != 255:
+                eb = (eb[0], eb[1], eb[2], 255)
+            ew = variants[5][0]
+            ep = variants[6][0]
+            mt = variants[7][0]
+
+            if decked_out is False and mint_count == MINT_RESEED:
+                bs = eb
+            else:
+                bs = random.choice([eb, sk]) # 50% chance beard
+                er_opts.append(sk)
+            br = bs
+            if bs == sk:
+                br = bd
             sm = bd
             sf = bd
             ss = bd
             sz = bg
-            er_opts.append(sk)
             er = random.choice(er_opts)
 
             if tune_sm_force is True:
@@ -553,11 +653,11 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             else:
                 sm_active = random.choice([True, False, False, False]) # 25% Chance of smoke
 
-            if sm_active is True:
+            if sm_active is True or (decked_out is False and mint_count == MINT_RESEED):
                 # TODO : Return to opts and do work there
-                sm = random.choice(variants[4])  # sm_opts)
-                sf = random.choice(variants[6])  # sf_opts)
-                ss = sz = random.choice(variants[5])  # white_opac
+                sm = variants[8][0]  # sm_opts)
+                sf = variants[9][0]  # sf_opts)
+                ss = variants[10][0]  # white_opac
                 if tune_sm_alpha is True:
                     sf = transparent
 
@@ -566,23 +666,41 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                     bg = tune_bg_force_colour
                 else:
                     bg = random.choice(bg_opts)
+                    if bg_trim is True:
+                        collect = bg_opts
+                        for bg_k, bg_i in enumerate(collect):
+                            if bg_i == bg:
+                                del collect[bg_k]
+                        bg_opts = collect
                 if sm_active is False:
                     sz = bg
                 sg_add_count = 0
                 while sg_add_count < tune_sg_alpha_prob:
                     sg_opts.append(transparent)
                     sg_add_count += 1
-            if tune_sg_force is True:
+            if tune_sg_force is True or (decked_out is False and mint_count == MINT_RESEED):
                 sg = random.choice(sg_opts)
             else:
-                sg = random.choice([random.choice(sg_opts), sk, sk]) # 33% chance of shades
+                if bs == sk:
+                    sg = random.choice([random.choice(sg_opts), sk])  # 50% chance of shades if no beard
+                else:
+                    sg = random.choice([random.choice(sg_opts), sk, sk])  # 33% chance of shades
             # Eyes if no shades
+            alt_eb = eb
             if sk != sg:
-                ep = ew = eb = sg
+                eb = sg
+                bf = ep = ew = sg
+            else:
+                bf = bs
+
+            # Check if decked out condition met
+            if bs != sk and sg != sk and er != sk and sm != bd:
+                decked_out = True
 
             # Construct JSON Values
             att_list = ''
-            att_list += '{"Background": "' + str(bg) + '"}'
+            att_list += '{"Minter": "' + payer_addr + '"}'
+            att_list += ',{"Background": "' + str(bg) + '"}'
             att_list += ',{"Frock": "' + str(fc) + '/' + str(fh) + '/' + str(fs) + '"}'
             att_list += ',{"Skin": "' + str(sk) + '"}'
             att_list += ',{"Mouth": "' + str(mt) + '"}'
@@ -607,22 +725,22 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 [bg, bg, bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fc, fc, fc, fs, fs, fs, fs, fs, fc, fc, fc, bd, sz, bg, bg, bg, bg, bg, bg, bg],
                 [bg, bg, bg, bg, bg, bg, bg, bg, bd, fc, fc, fc, fc, fs, fs, bd, bd, bd, bd, bd, fs, fs, fc, bd, bg, bg, bg, bg, bg, bg, bg, bg],
                 [bg, bg, bg, bg, bg, bg, bg, bd, fc, fc, fc, fc, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fc, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bg, bd, fc, fc, fc, fc, fs, bd, bd, sk, sk, sk, sk, bd, bd, bd, bd, fs, ss, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fc, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fc, fs, bd, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fs, fs, bd, sg, sg, eb, eb, sg, sg, eb, eb, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bg, bd, fs, fs, fs, fc, fs, fs, bd, sk, sg, ew, ep, sg, sk, ew, ep, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, bd, sk, sk, sg, sg, sg, sk, sk, sg, bd, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, sk, sk, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, bd, er, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, fs, fs, bd, fs, fs, bd, bd, bd, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, fs, bd, bd, bd, fs, fs, bd, bd, bd, sk, sk, sk, sk, sk, mt, mt, sm, sm, sm, sm, sf, bd, bg, bg, bg, bg, bg, bg],
-                [bg, bg, bg, bd, bd, bd, fs, fs, fs, fs, bd, bd, bd, bd, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bg, bg, bd, bd, fs, fs, fs, fc, fs, bd, bd, bd, bd, bd, bd, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, bd, fs, fs, fc, fc, fc, fc, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, fs, fc, fc, fc, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
-                [bd, fs, fs, fs, fc, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bg, bg, bg, bd, fc, fc, fc, fc, fs, bd, bd, bs, bs, bs, bs, bd, bd, bd, bd, fs, ss, bg, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fc, fs, bd, bd, bs, sk, bs, sk, bs, sk, bs, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fc, fs, bd, bs, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bg, bg, bd, fs, fc, fc, fs, fs, bd, bf, sg, eb, eb, sg, sg, eb, eb, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bg, bd, fs, fs, fs, fc, fs, fs, bd, bs, sg, ew, ep, sg, sk, ew, ep, bd, bd, bd, ss, bg, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, fs, bd, bs, sk, sg, sg, sg, sk, sk, sg, bd, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, bd, bs, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, sk, bs, bs, sk, sk, sk, sk, sk, sk, sk, bd, bd, ss, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bd, fs, fs, fs, fs, fs, fs, bd, bd, er, bs, bs, bs, sk, sk, sk, bs, bs, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bd, fs, fs, fs, bd, fs, fs, bd, bd, bd, bs, bs, bs, bs, bs, bs, bs, bs, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bd, fs, bd, bd, bd, fs, fs, bd, bd, bd, bs, bs, bs, bs, bs, mt, mt, sm, sm, sm, sm, sf, bd, bg, bg, bg, bg, bg, bg],
+                [bg, bg, bg, bd, bd, bd, fs, fs, fs, fs, bd, bd, bd, br, bs, bs, bs, bs, bs, bs, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
+                [bg, bg, bd, bd, fs, fs, fs, fc, fs, bd, bd, bd, bd, bd, br, bs, bs, bs, bs, br, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
+                [bd, bd, fs, fs, fc, fc, fc, fc, fs, bd, bd, bd, bd, bd, bd, br, br, br, br, br, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
+                [bd, fs, fc, fc, fc, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, br, br, br, br, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg, bg],
+                [bd, fs, fs, fs, fc, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, bd, br, br, bd, bd, bd, bd, bd, bd, bd, bd, bd, bg, bg, bg, bg],
                 [bd, bd, bd, bd, bd, fc, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, bd, bg, bg, bg],
                 [bd, fs, fs, fc, bd, bd, fc, fc, fc, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, bg, bg],
                 [fs, fs, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, fs, fs, fs, fs, fs, bd, bd, bg],
@@ -636,7 +754,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
             get_random_monk = random.choice(random_monk)
             if get_random_monk == 1 or get_random_monk == 47:
                 if tune_bg_alt_rand is True:
-                    alt_bg_color_grid = [[],[],[],[],[],[],[],[],[]]
+                    alt_bg_color_grid = [[], [], [], [], [], [], [], [], []]
                     for ck, color_chosen in enumerate(alt_bg_color_grid):
                         alt_bg_color_grid[ck] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255), tune_global_alpha)
                     bg_opts_alt = random.choice(alt_bg_color_grid)
@@ -646,8 +764,27 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                     _g = bg_opts_alt
                 _g = bg
                 # Override tweak for shades to be winger back
-                if tune_allow_sg_bg_alt is True and sk == sg:
+                if tune_allow_sg_bg_alt is True and sk != sg:
                     _g = sg
+                nb = bs
+                nbh = bs
+                nr = bd
+                lh = bs
+                lr = bd
+                if bs != sk or tune_always_winter_hair is True:
+                    is_beard = random.choice([True, False])
+                    if is_beard is True:
+                        lh = sk
+                        lr = bd
+                        nb = alt_eb
+                        nr = nb
+                        nbh = nr
+                    else:
+                        nr = bd
+                        nb = sk
+                        lh = alt_eb
+                        lr = lh
+                        nbh = lr
                 cm_winter = [
                     [_g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
                     [_g, _g, _g, _g, _g, _g, _g, _g, _g, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g, _g],
@@ -664,18 +801,18 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                     [_g, _g, _g, _g, _g, _g, bd, fs, fh, fh, fh, fh, fh, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g, _g],
                     [_g, _g, _g, _g, _g, _g, bd, fs, fh, fh, fh, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g],
                     [_g, _g, _g, _g, _g, bd, fs, fs, fs, fh, fs, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, fs, fs, bd, bd, _g, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, bd, bd, fs, fs, bd, _g, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, fs, bd, _g, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, bd, fs, fs, fs, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, bd, fs, bd, bd, bd, fs, fs, fs, bd, bd, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
-                    [_g, _g, _g, bd, bd, bd, fs, fs, fs, fs, fs, bd, bd, bd, sk, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
-                    [_g, _g, bd, bd, fs, fs, fs, fc, fs, fs, bd, bd, bd, bd, bd, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
-                    [bd, bd, fs, fs, fc, fc, fc, fc, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
-                    [bd, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
-                    [bd, fs, fs, fs, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g],
-                    [bd, bd, bd, bd, bd, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, bd, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, lh, sk, sk, bd, bd, fs, fs, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, lh, lh, sk, sk, sk, bd, bd, fs, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, lh, lh, sk, sk, sk, sk, sk, bd, bd, bd, _g, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, fs, fs, fs, fs, fs, fs, fs, bd, bd, lh, lh, lh, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, fs, fs, bd, fs, fs, fs, bd, bd, nbh, lh, lh, sk, sk, sk, sk, sk, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, fs, bd, bd, bd, fs, fs, fs, bd, bd, nbh, nbh, lh, sk, sk, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g, _g],
+                    [_g, _g, _g, bd, bd, bd, fs, fs, fs, fs, fs, bd, bd, lr, nbh, nbh, sk, sk, sk, sk, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [_g, _g, bd, bd, fs, fs, fs, fc, fs, fs, bd, bd, bd, lr, lr, nb, nb, nb, nb, nr, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, bd, fs, fs, fc, fc, fc, fc, fs, fs, bd, bd, bd, lr, lr, bd, bd, nr, nr, nr, nr, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, fs, fc, fc, fc, fc, fc, fc, fs, fs, fs, bd, bd, bd, lr, bd, bd, bd, bd, nr, nr, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g, _g],
+                    [bd, fs, fs, fs, fc, fc, fc, fc, fs, fs, fs, fs, bd, bd, lr, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, _g, _g, _g, _g],
+                    [bd, bd, bd, bd, bd, fc, fc, fc, fc, fs, fs, fs, fs, bd, lr, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, bd, _g, _g, _g],
                     [bd, fs, fs, fc, bd, bd, fc, fc, fc, fs, fs, fs, fs, fs, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, _g, _g],
                     [fs, fs, fc, fc, fc, bd, bd, bd, bd, bd, bd, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, bd, fs, fs, fs, fs, fs, fs, fs, bd, bd, _g],
                     [fs, fc, fc, fc, fc, fc, fc, fc, fc, fc, fs, fs, bd, bd, fs, fs, bd, bd, bd, bd, bd, bd, fs, fc, fc, fc, fs, fs, fs, fs, bd, bd],
@@ -713,35 +850,58 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
                 break
 
         # Create final output image
-        out_image = Image.alpha_composite(out_canvass, monk)
-        out_image = out_image.convert('RGB')
+        out_image_init = Image.alpha_composite(out_canvass, monk)
+        out_image = out_image_init.convert('RGB')
         imgfile = cache_dir + nftname + '.png'
         out_image.save(imgfile)
+        img_files = [imgfile]
+        if tune_out_pxltd > 0:
+            out_image_32x32 = out_image.resize((tune_out_pxltd, tune_out_pxltd), resample=Image.NEAREST)
+            out_image_pxl_lg = out_image_32x32.resize((tune_out_wh, tune_out_wh), resample=Image.NEAREST)
+            im_rgba = out_image_32x32.convert('RGBA')
+            imgfile_pxl = cache_dir + nftname + '_pxld.png'
+            imgfile_pxl_lg = cache_dir + nftname + '_pxld_lg.png'
+            out_image_32x32.save(imgfile_pxl)
+            out_image_pxl_lg.save(imgfile_pxl_lg)
+            img_files += [imgfile_pxl_lg]
+            if INC_SVG is True:
+                import convertpngtosvg as tosvg
+                svg_out_file = cache_dir + nftname + '.svg'
+                with open(svg_out_file, 'w') as svg_save:
+                    svg_save.write(tosvg.rgba_image_to_svg_contiguous(im_rgba, False))
+                    svg_save.close()
 
         # Pin image
+        ipfs_hash_list = []
         while True:
-            if USE_PINATA is True:
-                pinerr, ipfs_hash = pinnata(pn_key, pn_sec, {'file': open(imgfile, 'rb')})
-            if USE_INFURA is True:
-                pinerr, ipfs_hash = False, 'TESTHASH' #infura(pn_key, pn_sec, {'file': imgfile})
+            pinerr = True
+            for img_file in img_files:
+                if USE_PINATA is True:
+                    pinerr, ipfs_hash = pinnata(pn_key, pn_sec, {'file': open(img_file, 'rb')})
+                if USE_INFURA is True:
+                    pinerr, ipfs_hash = False, 'TESTHASH' #infura(pn_key, pn_sec, {'file': open(img_file, 'rb')}) #False, 'TESTHASH' #
+                ipfs_hash_list += ['ipfs://' + ipfs_hash]
             if pinerr is False:
-                ipfs_hash = 'ipfs://' + ipfs_hash
                 break
 
         # Colour Swatch
-        swatch_orig = list(swatch)
-        for key, dab in enumerate(swatch):
+        extract_swatch = list(swatch)
+        swatch_orig = list(extract_swatch)
+        for key, dab in enumerate(extract_swatch):
             dl = list(dab)
             dl[3] = round(float(dl[3] / 255), 2)
-            swatch[key] = tuple(dl)
-        html = '<div style="margin:0 auto;width:380px;height:420px;text-align:center;background-color:rgba' + str(bg) + ';border-radius:32px;overflow:hidden;max-width:380px;min-height:420px;"><div style="height:320px;width:auto;margin:12px 4px 0 4px;position:relative;"><div class="nft"><img src="https://nftstorage.link/ipfs/' + ipfs_hash.split('://')[1] + '"></div><div class="swatch"><div style="display:block;width:100%;height:10%;background:#3e3e3e;font-family:arial;font-weight:bold;color:#d3d3d3;min-height:40px;line-height:40px;">CypherSwatch</div>'
+            extract_swatch[key] = tuple(dl)
+        html = '<div style="margin:0 auto;width:380px;height:420px;text-align:center;background-color:rgba' + str(bg) + ';border-radius:32px;overflow:hidden;max-width:380px;min-height:420px;"><div style="height:320px;width:auto;margin:12px 4px 0 4px;position:relative;"><div class="nft"><img src="https://nftstorage.link/ipfs/' + ipfs_hash_list[0].split('://')[1] + '"></div><div class="swatch"><div style="display:block;width:100%;height:10%;background:#3e3e3e;font-family:arial;font-weight:bold;color:#d3d3d3;min-height:40px;line-height:40px;">CypherSwatch</div>'
         swatch_css = '<style>.swatch{display:block;width:90%;height:90%;min-height:320px;position:absolute;top:31px;left:19px;opacity:0;box-shadow:0 0 20px 3px #272727;transition:opacity 0.4s ease-in-out}.swatch:hover{opacity:1;transition:opacity 0.4s ease-in-out}[id^=swatch_colour]{display:block;width:33.33%;height:93.33px;float:left}[id^=swatch_colour]:hover{color:red}.nft>img{display:block;position:absolute;top:24px;left:5%;max-width:90%;}'
-        for skey, si in enumerate(swatch):
+        for skey, si in enumerate(extract_swatch):
             swatch_css += '#swatch_colour' + str(skey) + '{background:rgba' + str(si) + '}'
             html += '<div id="swatch_colour' + str(skey) + '" title="rgba' + str(swatch_orig[skey]) + '"></div>'
         swatch_css += '</style>'
         html += '</div></div></div>'
         html = swatch_css + html
+        # allow glitch found to be reenabled
+        if reenable_bug is True:
+            swatch = extract_swatch
         with open(cache_dir + 'htmlcache.html', 'w') as html_doc:
             html_doc.write(html)
             html_doc.close()
@@ -751,15 +911,17 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
         json_template = json_template.replace('NFT_LONG_NAME', ' '.join(nftlongname_display.split()))
         json_template = json_template.replace('ATT_LIST', ' '.join(att_list.split()))
         json_template = json_template.replace('NFT_RARITY', ' '.join(nft_rarity.split()))
-        json_template = json_template.replace('IPFS_HASH', ' '.join(ipfs_hash.split()))
+        json_template = json_template.replace('IPFS_HASH', ' '.join(ipfs_hash_list[0].split()))
         if enable_html is True:
             json_template = json_template.replace('HTML_DATA', ' '.join(encoded_html_json.split()))
         # spectrum_list = [unique_log]
-        if '|' in unique_log:
+        if '|' in unique_log and tune_each_colour_unique is False:
             unique_log_list = unique_log.split('|')
             out_spectrum = []
             for sitem in unique_log_list:
                 out_spectrum += [str(sitem)]
+        else:
+            out_spectrum = variants
         out_spectrum = json.dumps(out_spectrum)
         json_template = json_template.replace('SPECTRUM', ' '.join(out_spectrum.split()))
         with open(queued + nftname + '.json', 'w') as jsonfileout:
