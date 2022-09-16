@@ -41,7 +41,7 @@ def do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return
     """
         Your custom plugin code goes here, you must return the data (either modified or unmodified depending on your plugin functionality): tx_meta_json and mint_qty_int...take note of the expected type of each variable. In addition Minted expects to find resultant JSON files in the queued folder, named according to the normal standard for Minted (e.g. MyNFT008.json .. or .. MyNFT8.json..etc depending on your naming schema)
     """
-    return err_bool, action, tx_meta_json, mint_qty_int
+    return err_bool, action, payer_addr, tx_meta_json, mint_qty_int
 
 # DO NOT MODIFY BELOW
 if __name__ == "__main__":
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         mint_qty_int = input_data['qty_to_mint']
 
         # Process main plugin function
-        return_err, action, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
-        return_data = {"err": return_err, "action": action, "tx_meta": return_txmeta, "mint_qty": return_mintqty}
+        return_err, action, return_mint_at_addr, return_txmeta, return_mintqty = do_plugin(settings, is_test, payer_hash, payer_addr, payer_ada, payer_return_ada, payer_asset_string, policy_id, tx_meta_json, mint_qty_int)
+        return_data = {"err": return_err, "action": action, "mint_at_addr": return_mint_at_addr, "tx_meta": return_txmeta, "mint_qty": return_mintqty}
 
     exit(json.dumps(return_data))
